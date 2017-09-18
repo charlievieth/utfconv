@@ -38,24 +38,6 @@ const (
 	rune3Max = 1<<16 - 1 // 0xFFFF
 )
 
-// RuneLen returns the number of bytes required to encode the rune.
-// It returns -1 if the rune is not a valid value to encode in UTF-8.
-func runeLenUTF8(r uint32) int {
-	switch {
-	case r <= rune1Max:
-		return 1
-	case r <= rune2Max:
-		return 2
-	case surrogateMin <= r && r <= surrogateMax:
-		return runeErrorLen
-	case r <= rune3Max:
-		return 3
-	case r <= maxRune:
-		return 4
-	}
-	return runeErrorLen
-}
-
 // UTF8EncodedLen returns the number of bytes required to encode UTF16 slice s
 // as UTF8.
 func UTF8EncodedLen(s []uint16) int {
@@ -68,20 +50,15 @@ func UTF8EncodedLen(s []uint16) int {
 			n++
 		case r < surr1, surr3 <= r:
 			// normal rune
-			switch {
-			case r <= rune2Max:
+			if r <= rune2Max {
 				n += 2
-			case r <= rune3Max:
+			} else {
 				n += 3
-			case r <= maxRune:
-				n += 4
-			default:
-				n += runeErrorLen
 			}
 		case surr1 <= r && r < surr2 && i+1 < ns &&
 			surr2 <= s[i+1] && s[i+1] < surr3:
 			// valid surrogate sequence
-			n += runeLenUTF8((r-surr1)<<10 | (uint32(s[i+1]) - surr2) + surrSelf)
+			n += 4
 			i++
 		default:
 			// invalid surrogate sequence
