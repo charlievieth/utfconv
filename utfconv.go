@@ -135,6 +135,7 @@ func UTF16ToString(s []uint16) string {
 	return string(UTF16ToBytes(s))
 }
 
+// WARN: This may return a much larger length than required!
 func UTF16EncodedLen(s []byte) int {
 	const (
 		t2 = 0xC0 // 1100 0000
@@ -145,6 +146,7 @@ func UTF16EncodedLen(s []byte) int {
 	n := 0
 	ns := len(s)
 	for i := 0; i < ns; n++ {
+		// TODO: some of these bounds checks can probably be removed
 		switch c := s[i]; {
 		case c < runeSelf:
 			i++
@@ -160,6 +162,7 @@ func UTF16EncodedLen(s []byte) int {
 	return n
 }
 
+// WARN: This may return a much larger length than required!
 func UTF16EncodedLenString(s string) int {
 	const (
 		t2 = 0xC0 // 1100 0000
@@ -170,6 +173,7 @@ func UTF16EncodedLenString(s string) int {
 	n := 0
 	ns := len(s)
 	for i := 0; i < ns; n++ {
+		// TODO: some of these bounds checks can probably be removed
 		switch c := s[i]; {
 		case c < runeSelf:
 			i++
