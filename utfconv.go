@@ -207,29 +207,51 @@ func decoderune(s []byte, k int) (r rune, pos int) {
 }
 
 func UTF16EncodedLen(s []byte) int {
+	const (
+		t2 = 0xC0 // 1100 0000
+		t3 = 0xE0 // 1110 0000
+		t4 = 0xF0 // 1111 0000
+		t5 = 0xF8 // 1111 1000
+	)
 	n := 0
 	ns := len(s)
 	for i := 0; i < ns; n++ {
-		if s[i] < runeSelf {
+		switch c := s[i]; {
+		case c < runeSelf:
 			i++
-		} else {
-			v, idx := decoderune(s, i)
-			if surrSelf <= v && v <= maxRune {
-				n++
-			}
-			i = idx
+		case t2 <= c && c < t3:
+			i += 2
+		case t3 <= c && c < t4:
+			i += 3
+		case t4 <= c && c < t5:
+			i += 4
+			n++
 		}
 	}
 	return n
 }
 
 func UTF16EncodedLenString(s string) int {
+	const (
+		t2 = 0xC0 // 1100 0000
+		t3 = 0xE0 // 1110 0000
+		t4 = 0xF0 // 1111 0000
+		t5 = 0xF8 // 1111 1000
+	)
 	n := 0
-	for _, v := range s {
-		if surrSelf <= v && v <= maxRune {
+	ns := len(s)
+	for i := 0; i < ns; n++ {
+		switch c := s[i]; {
+		case c < runeSelf:
+			i++
+		case t2 <= c && c < t3:
+			i += 2
+		case t3 <= c && c < t4:
+			i += 3
+		case t4 <= c && c < t5:
+			i += 4
 			n++
 		}
-		n++
 	}
 	return n
 }
