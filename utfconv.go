@@ -68,50 +68,8 @@ func UTF8EncodedLen(s []uint16) int {
 	return n
 }
 
-// encoderune writes into p (which must be large enough) the UTF-8 encoding of the rune.
-// It returns the number of bytes written.
-func encoderune(p []byte, r uint32) int {
-	const (
-		t1 = 0x00 // 0000 0000
-		tx = 0x80 // 1000 0000
-		t2 = 0xC0 // 1100 0000
-		t3 = 0xE0 // 1110 0000
-		t4 = 0xF0 // 1111 0000
-
-		maskx = 0x3F // 0011 1111
-	)
-	// Negative values are erroneous. Making it unsigned addresses the problem.
-	switch {
-	case r <= rune1Max:
-		p[0] = byte(r)
-		return 1
-	case r <= rune2Max:
-		_ = p[1] // eliminate bounds checks
-		p[0] = t2 | byte(r>>6)
-		p[1] = tx | byte(r)&maskx
-		return 2
-	case r > maxRune, surrogateMin <= r && r <= surrogateMax:
-		r = runeError
-		fallthrough
-	case r <= rune3Max:
-		_ = p[2] // eliminate bounds checks
-		p[0] = t3 | byte(r>>12)
-		p[1] = tx | byte(r>>6)&maskx
-		p[2] = tx | byte(r)&maskx
-		return 3
-	default:
-		_ = p[3] // eliminate bounds checks
-		p[0] = t4 | byte(r>>18)
-		p[1] = tx | byte(r>>12)&maskx
-		p[2] = tx | byte(r>>6)&maskx
-		p[3] = tx | byte(r)&maskx
-		return 4
-	}
-}
-
 func UTF16ToBytes(s []uint16) []byte {
 	const (
-		t1 = 0x00 // 0000 0000
 		tx = 0x80 // 1000 0000
 		t2 = 0xC0 // 1100 0000
 		t3 = 0xE0 // 1110 0000
@@ -140,58 +98,31 @@ func UTF16ToBytes(s []uint16) []byte {
 			n++
 		case r < surr1, surr3 <= r:
 			// normal rune
-			// n += encoderune(a[n:], r)
-			p := a[n:]
-			switch {
-			case r <= rune2Max:
-				_ = p[1] // eliminate bounds checks
-				p[0] = t2 | byte(r>>6)
-				p[1] = tx | byte(r)&maskx
+			if r <= rune2Max {
+				_ = a[n+1] // eliminate bounds checks
+				a[n+0] = t2 | byte(r>>6)
+				a[n+1] = tx | byte(r)&maskx
 				n += 2
-			case r <= rune3Max:
-				_ = p[2] // eliminate bounds checks
-				p[0] = t3 | byte(r>>12)
-				p[1] = tx | byte(r>>6)&maskx
-				p[2] = tx | byte(r)&maskx
+			} else {
+				_ = a[n+2] // eliminate bounds checks
+				a[n+0] = t3 | byte(r>>12)
+				a[n+1] = tx | byte(r>>6)&maskx
+				a[n+2] = tx | byte(r)&maskx
 				n += 3
-			default:
-				_ = p[3] // eliminate bounds checks
-				p[0] = t4 | byte(r>>18)
-				p[1] = tx | byte(r>>12)&maskx
-				p[2] = tx | byte(r>>6)&maskx
-				p[3] = tx | byte(r)&maskx
-				n += 4
 			}
 		case surr1 <= r && r < surr2 && i+1 < ns &&
 			surr2 <= s[i+1] && s[i+1] < surr3:
 			// valid surrogate sequence
 
-			// n += encoderune(a[n:], (r-surr1)<<10|(uint32(s[i+1])-surr2)+surrSelf)
-			// i++
-
 			r = (r-surr1)<<10 | (uint32(s[i+1]) - surr2) + surrSelf
-			p := a[n:]
-			switch {
-			case r <= rune2Max:
-				_ = p[1] // eliminate bounds checks
-				p[0] = t2 | byte(r>>6)
-				p[1] = tx | byte(r)&maskx
-				n += 2
-			case r <= rune3Max:
-				_ = p[2] // eliminate bounds checks
-				p[0] = t3 | byte(r>>12)
-				p[1] = tx | byte(r>>6)&maskx
-				p[2] = tx | byte(r)&maskx
-				n += 3
-			default:
-				_ = p[3] // eliminate bounds checks
-				p[0] = t4 | byte(r>>18)
-				p[1] = tx | byte(r>>12)&maskx
-				p[2] = tx | byte(r>>6)&maskx
-				p[3] = tx | byte(r)&maskx
-				n += 4
-			}
 			i++
+
+			_ = a[n+3] // eliminate bounds checks
+			a[n+0] = t4 | byte(r>>18)
+			a[n+1] = tx | byte(r>>12)&maskx
+			a[n+2] = tx | byte(r>>6)&maskx
+			a[n+3] = tx | byte(r)&maskx
+			n += 4
 		default:
 			// invalid surrogate sequence
 			n += copy(a[n:], []byte{239, 191, 189}) // replacementChar bytes
@@ -199,44 +130,6 @@ func UTF16ToBytes(s []uint16) []byte {
 	}
 	return a
 }
-
-// func UTF16ToBytes(s []uint16) []byte {
-// 	na := UTF8EncodedLen(s)
-// 	a := make([]byte, na)
-// 	ns := len(s)
-
-// 	// ASCII fast path
-// 	if na == ns {
-// 		for i, c := range s {
-// 			a[i] = byte(c)
-// 		}
-// 		return a
-// 	}
-
-// 	n := 0
-// 	for i := 0; i < ns; i++ {
-// 		switch r := rune(s[i]); {
-// 		case r < runeSelf:
-// 			// ASCII fast path
-// 			a[n] = byte(r)
-// 			n++
-// 		case r < surr1, surr3 <= r:
-// 			// normal rune
-// 			n += utf8.EncodeRune(a[n:], r)
-// 			// n += encoderune(a[n:], r)
-// 		case surr1 <= r && r < surr2 && i+1 < ns &&
-// 			surr2 <= s[i+1] && s[i+1] < surr3:
-// 			// valid surrogate sequence
-// 			n += utf8.EncodeRune(a[n:], (r-surr1)<<10|(rune(s[i+1])-surr2)+surrSelf)
-// 			// n += encoderune(a[n:], (r-surr1)<<10|(rune(s[i+1])-surr2)+surrSelf)
-// 			i++
-// 		default:
-// 			// invalid surrogate sequence
-// 			n += copy(a[n:], []byte{239, 191, 189}) // replacementChar bytes
-// 		}
-// 	}
-// 	return a
-// }
 
 func UTF16ToString(s []uint16) string {
 	return string(UTF16ToBytes(s))
