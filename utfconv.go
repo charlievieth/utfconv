@@ -135,26 +135,15 @@ func UTF16ToString(s []uint16) string {
 	return string(UTF16ToBytes(s))
 }
 
-// WARN: This may return a much larger length than required!
 func UTF16EncodedLen(s []byte) int {
 	const (
 		t2 = 0xC0 // 1100 0000
 		t3 = 0xE0 // 1110 0000
 		t4 = 0xF0 // 1111 0000
 		t5 = 0xF8 // 1111 1000
-
-		maskx = 0x3F // 0011 1111
-		mask2 = 0x1F // 0001 1111
-		mask3 = 0x0F // 0000 1111
-		mask4 = 0x07 // 0000 0111
-
-		// The default lowest and highest continuation byte.
-		locb = 0x80 // 1000 0000
-		hicb = 0xBF // 1011 1111
 	)
 	n := 0
 	ns := len(s)
-Loop:
 	for i := 0; i < ns; n++ {
 		// TODO: some of these bounds checks can probably be removed
 		switch c := s[i]; {
@@ -163,37 +152,12 @@ Loop:
 		case t2 <= c && c < t3:
 			i += 2
 		case t3 <= c && c < t4:
-			// if i < ns-2 && (locb <= s[i+1] && s[i+1] <= hicb) && (locb <= s[i+2] && s[i+2] <= hicb) {
-			// 	r := rune(c&mask3)<<12 | rune(s[i+1]&maskx)<<6 | rune(s[i+2]&maskx)
-			// 	if rune2Max < r && !(surrogateMin <= r && r <= surrogateMax) {
-			// 		i += 3
-			// 		if surrSelf <= r && r <= maxRune {
-			// 			n++
-			// 		} else {
-			// 			fmt.Printf("%q - miss 3\n", string(s))
-			// 		}
-			// 		continue Loop
-			// 	} else {
-			// 		fmt.Printf("%q - miss 2\n", string(s))
-			// 	}
-			// } else {
-			// 	fmt.Printf("%q - miss 1\n", string(s))
-			// }
-			// i++
-
-			if i < ns-2 && (locb <= s[i+1] && s[i+1] <= hicb) && (locb <= s[i+2] && s[i+2] <= hicb) {
-				r := rune(c&mask3)<<12 | rune(s[i+1]&maskx)<<6 | rune(s[i+2]&maskx)
-				if rune2Max < r && !(surrogateMin <= r && r <= surrogateMax) {
-					i += 3
-					if surrSelf <= r && r <= maxRune {
-						n++
-					}
-					continue Loop
-				}
+			if i < ns-2 {
+				i += 3
+			} else {
+				i++ // error
 			}
-			i++
 		case t4 <= c && c < t5:
-			// fmt.Printf("4: %q\n", string(s))
 			i += 4
 			n++
 		default:
@@ -203,7 +167,6 @@ Loop:
 	return n
 }
 
-// WARN: This may return a much larger length than required!
 func UTF16EncodedLenString(s string) int {
 	const (
 		t2 = 0xC0 // 1100 0000
@@ -221,10 +184,16 @@ func UTF16EncodedLenString(s string) int {
 		case t2 <= c && c < t3:
 			i += 2
 		case t3 <= c && c < t4:
-			i += 3
+			if i < ns-2 {
+				i += 3
+			} else {
+				i++ // error
+			}
 		case t4 <= c && c < t5:
 			i += 4
 			n++
+		default:
+			i++
 		}
 	}
 	return n
