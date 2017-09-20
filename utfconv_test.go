@@ -63,6 +63,10 @@ var testStrings = []string{
 	"evil 2: \xe2\x80",
 	"evil 3: a\xe2\x80",
 
+	"evil 1: \xe2\x00 suffix",
+	"evil 2: \xe2\x80 suffix",
+	"evil 3: a\xe2\x80 suffix",
+
 	"abcd",
 	"A ∆ B",
 	"☺☻☹",
@@ -252,9 +256,40 @@ var invalidSequenceTests = []string{
 	"\xF4\x90\x80\x80",
 }
 
+func TestInvalidUTF8EncodedLen(t *testing.T) {
+	for i, x := range invalidSequenceTests {
+		u := utf16.Encode([]rune(x))
+		n := UTF8EncodedLen(u)
+		exp := expUTF16String(x)
+		if n != len(exp) {
+			t.Errorf("UTF8EncodedLen (%d - %q) got %d want %d", i, exp, n, len(exp))
+		}
+	}
+}
+
+func TestInvalidUTF16EncodedLen(t *testing.T) {
+	for i, s := range invalidSequenceTests {
+		u := utf16.Encode([]rune(s))
+		n := UTF16EncodedLen([]byte(s))
+		if n != len(u) {
+			t.Errorf("UTF16EncodedLen (%d - %q) got %d want %d", i, s, n, len(u))
+		}
+	}
+}
+
+func TestInvalidUTF16EncodedLenString(t *testing.T) {
+	for i, s := range invalidSequenceTests {
+		u := utf16.Encode([]rune(s))
+		n := UTF16EncodedLenString(s)
+		if n != len(u) {
+			t.Errorf("UTF16EncodedLenString (%d - %q) got %d want %d", i, s, n, len(u))
+		}
+	}
+}
+
 func TestInvalidBytesToUTF16(t *testing.T) {
 	// WARN FIX THIS TEST
-	t.Skip("Not working!")
+	// t.Skip("Not working!")
 
 	for i, s := range invalidSequenceTests {
 		exp := utf16.Encode([]rune(s))

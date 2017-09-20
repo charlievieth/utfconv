@@ -135,34 +135,119 @@ func UTF16ToString(s []uint16) string {
 	return string(UTF16ToBytes(s))
 }
 
-func UTF16EncodedLen(s []byte) int {
+// WARN: only use with UTF16EncodedLen*
+func encodedLen(v rune) int {
+	if 0 <= v && v < surr1 || (surr3 <= v && v < surrSelf) {
+		return 1
+	}
+	if surrSelf <= v && v <= maxRune {
+		return 2
+	}
+	return -1
+}
+
+// surr1 = 0xd800
+// surr2 = 0xdc00
+// surr3 = 0xe000
+//
+// surrSelf = 0x10000
+//
+// surrogateMin = 0xD800
+// surrogateMax = 0xDFFF
+//
+// rune1Max = 1<<7 - 1  // 0x7F
+// rune2Max = 1<<11 - 1 // 0x7FF
+// rune3Max = 1<<16 - 1 // 0xFFFF
+//
+// maskx = 0x3F // 0011 1111
+// mask2 = 0x1F // 0001 1111
+// mask3 = 0x0F // 0000 1111
+// mask4 = 0x07 // 0000 0111
+//
+func UTF16EncodedLen(p []byte) int {
 	const (
 		t2 = 0xC0 // 1100 0000
 		t3 = 0xE0 // 1110 0000
 		t4 = 0xF0 // 1111 0000
 		t5 = 0xF8 // 1111 1000
+
+		maskx = 0x3F // 0011 1111
+		mask2 = 0x1F // 0001 1111
+		mask3 = 0x0F // 0000 1111
+		mask4 = 0x07 // 0000 0111
+
+		// The default lowest and highest continuation byte.
+		locb = 0x80 // 1000 0000
+		hicb = 0xBF // 1011 1111
 	)
 	n := 0
-	ns := len(s)
+	ns := len(p)
+Loop:
 	for i := 0; i < ns; n++ {
-		// TODO: some of these bounds checks can probably be removed
-		switch c := s[i]; {
-		case c < runeSelf:
+		if p[i] < runeSelf {
 			i++
-		case t2 <= c && c < t3:
-			i += 2
-		case t3 <= c && c < t4:
-			if i < ns-2 {
-				i += 3
-			} else {
+		} else {
+			switch s := p[i:]; {
+			case t2 <= s[0] && s[0] < t3:
+				if len(s) > 1 && (locb <= s[1] && s[1] <= hicb) {
+					r := rune(s[0]&mask2)<<6 | rune(s[1]&maskx)
+					if rune1Max < r {
+						i += 2
+						// TODO: remove impossible range checks
+						switch {
+						case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
+							// ok
+						case surrSelf <= r && r <= maxRune:
+							n++
+						}
+						continue Loop
+					}
+				}
 				i++ // error
+
+			case t3 <= s[0] && s[0] < t4:
+				if len(s) > 2 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] && s[2] <= hicb) {
+					// TODO: can probably discard the last mask
+					r := rune(s[0]&mask3)<<12 | rune(s[1]&maskx)<<6 | rune(s[2]&maskx)
+					if rune2Max < r && !(surrogateMin <= r && r <= surrogateMax) {
+						i += 3
+						// TODO: remove impossible range checks
+						switch {
+						case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
+							// ok
+						case surrSelf <= r && r <= maxRune:
+							n++
+						}
+						continue Loop
+					}
+				}
+				i++ // error
+
+			case t4 <= s[0] && s[0] < t5:
+				if len(s) > 3 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] &&
+					s[2] <= hicb) && (locb <= s[3] && s[3] <= hicb) {
+
+					// TODO: investigate dropping masks
+					r := rune(s[0]&mask4)<<18 | rune(s[1]&maskx)<<12 | rune(s[2]&maskx)<<6 | rune(s[3]&maskx)
+					if rune3Max < r && r <= maxRune {
+						i += 4
+						// TODO: remove impossible range checks
+						switch {
+						case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
+							// ok
+						case surrSelf <= r && r <= maxRune:
+							n++
+						}
+						continue Loop
+					}
+				}
+				i++ // error
+
+			default:
+				i++
 			}
-		case t4 <= c && c < t5:
-			i += 4
-			n++
-		default:
-			i++
 		}
+		// TODO: some of these bounds checks can probably be removed
 	}
 	return n
 }
