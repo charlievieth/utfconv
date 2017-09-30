@@ -1,9 +1,6 @@
 package utfconv
 
-import (
-	"fmt"
-	"unicode/utf16"
-)
+import "unsafe"
 
 // UTF16 constants
 
@@ -43,6 +40,23 @@ const (
 	rune3Max = 1<<16 - 1 // 0xFFFF
 )
 
+const (
+	tx = 0x80 // 1000 0000
+	t2 = 0xC0 // 1100 0000
+	t3 = 0xE0 // 1110 0000
+	t4 = 0xF0 // 1111 0000
+	t5 = 0xF8 // 1111 1000
+
+	maskx = 0x3F // 0011 1111
+	mask2 = 0x1F // 0001 1111
+	mask3 = 0x0F // 0000 1111
+	mask4 = 0x07 // 0000 0111
+
+	// The default lowest and highest continuation byte.
+	locb = 0x80 // 1000 0000
+	hicb = 0xBF // 1011 1111
+)
+
 // UTF8EncodedLen returns the number of bytes required to encode UTF16 slice s
 // as UTF8.
 func UTF8EncodedLen(s []uint16) int {
@@ -74,14 +88,6 @@ func UTF8EncodedLen(s []uint16) int {
 }
 
 func UTF16ToBytes(s []uint16) []byte {
-	const (
-		tx = 0x80 // 1000 0000
-		t2 = 0xC0 // 1100 0000
-		t3 = 0xE0 // 1110 0000
-		t4 = 0xF0 // 1111 0000
-
-		maskx = 0x3F // 0011 1111
-	)
 	na := UTF8EncodedLen(s)
 	a := make([]byte, na)
 	ns := len(s)
@@ -130,25 +136,64 @@ func UTF16ToBytes(s []uint16) []byte {
 			n += 4
 		default:
 			// invalid surrogate sequence
-			n += copy(a[n:], []byte{239, 191, 189}) // replacementChar bytes
+			n += copy(a[n:], "\uFFFD") // replacement char
 		}
 	}
 	return a
 }
 
 func UTF16ToString(s []uint16) string {
-	return string(UTF16ToBytes(s))
-}
+	na := UTF8EncodedLen(s)
+	a := make([]byte, na)
+	ns := len(s)
 
-// WARN: only use with UTF16EncodedLen*
-func encodedLen(v rune) int {
-	if 0 <= v && v < surr1 || (surr3 <= v && v < surrSelf) {
-		return 1
+	// ASCII fast path
+	if na == ns {
+		for i, c := range s {
+			a[i] = byte(c)
+		}
+		return *(*string)(unsafe.Pointer(&a))
 	}
-	if surrSelf <= v && v <= maxRune {
-		return 2
+
+	n := 0
+	for i := 0; i < ns; i++ {
+		switch r := uint32(s[i]); {
+		case r < runeSelf:
+			// ASCII fast path
+			a[n] = byte(r)
+			n++
+		case r < surr1, surr3 <= r:
+			// normal rune
+			if r <= rune2Max {
+				_ = a[n+1] // eliminate bounds checks
+				a[n+0] = t2 | byte(r>>6)
+				a[n+1] = tx | byte(r)&maskx
+				n += 2
+			} else {
+				_ = a[n+2] // eliminate bounds checks
+				a[n+0] = t3 | byte(r>>12)
+				a[n+1] = tx | byte(r>>6)&maskx
+				a[n+2] = tx | byte(r)&maskx
+				n += 3
+			}
+		case surr1 <= r && r < surr2 && i+1 < ns &&
+			surr2 <= s[i+1] && s[i+1] < surr3:
+			// valid surrogate sequence
+			r = (r-surr1)<<10 | (uint32(s[i+1]) - surr2) + surrSelf
+			i++
+			_ = a[n+3] // eliminate bounds checks
+			a[n+0] = t4 | byte(r>>18)
+			a[n+1] = tx | byte(r>>12)&maskx
+			a[n+2] = tx | byte(r>>6)&maskx
+			a[n+3] = tx | byte(r)&maskx
+			n += 4
+		default:
+			// invalid surrogate sequence
+			n += copy(a[n:], "\uFFFD") // replacement char
+		}
 	}
-	return -1
+
+	return *(*string)(unsafe.Pointer(&a))
 }
 
 func UTF16EncodedLen(p []byte) int {
@@ -156,22 +201,6 @@ func UTF16EncodedLen(p []byte) int {
 	// that are simpler, but when benchmarked with Go 1.9 were slower. Even the
 	// minimal check of 'if surrSelf <= r {...' was ~28% slower than the switch
 	// statement.
-
-	const (
-		t2 = 0xC0 // 1100 0000
-		t3 = 0xE0 // 1110 0000
-		t4 = 0xF0 // 1111 0000
-		t5 = 0xF8 // 1111 1000
-
-		maskx = 0x3F // 0011 1111
-		mask2 = 0x1F // 0001 1111
-		mask3 = 0x0F // 0000 1111
-		mask4 = 0x07 // 0000 0111
-
-		// The default lowest and highest continuation byte.
-		locb = 0x80 // 1000 0000
-		hicb = 0xBF // 1011 1111
-	)
 
 	n := 0
 	ns := len(p)
@@ -238,22 +267,6 @@ func UTF16EncodedLenString(p string) int {
 	// minimal check of 'if surrSelf <= r {...' was ~28% slower than the switch
 	// statement.
 
-	const (
-		t2 = 0xC0 // 1100 0000
-		t3 = 0xE0 // 1110 0000
-		t4 = 0xF0 // 1111 0000
-		t5 = 0xF8 // 1111 1000
-
-		maskx = 0x3F // 0011 1111
-		mask2 = 0x1F // 0001 1111
-		mask3 = 0x0F // 0000 1111
-		mask4 = 0x07 // 0000 0111
-
-		// The default lowest and highest continuation byte.
-		locb = 0x80 // 1000 0000
-		hicb = 0xBF // 1011 1111
-	)
-
 	n := 0
 	np := len(p)
 Loop:
@@ -314,34 +327,11 @@ Loop:
 }
 
 func BytesToUTF16(p []byte) []uint16 {
-	const (
-		t2 = 0xC0 // 1100 0000
-		t3 = 0xE0 // 1110 0000
-		t4 = 0xF0 // 1111 0000
-		t5 = 0xF8 // 1111 1000
-
-		maskx = 0x3F // 0011 1111
-		mask2 = 0x1F // 0001 1111
-		mask3 = 0x0F // 0000 1111
-		mask4 = 0x07 // 0000 0111
-
-		// The default lowest and highest continuation byte.
-		locb = 0x80 // 1000 0000
-		hicb = 0xBF // 1011 1111
-	)
-
-	np := len(p)
 	na := UTF16EncodedLen(p)
 	a := make([]uint16, na)
-	if na == np {
-		for i, c := range p {
-			a[i] = uint16(c)
-		}
-		return a
-	}
 	n := 0
 Loop:
-	for i := 0; i < np; n++ {
+	for i := 0; i < len(p); n++ {
 		if p[i] < runeSelf {
 			a[n] = uint16(p[i])
 			i++
@@ -357,14 +347,10 @@ Loop:
 					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
 						a[n] = uint16(r)
 					case surrSelf <= r && r <= maxRune:
-						// r -= surrSelf
-						// a[n] = uint16(surr1 + (r>>10)&0x3ff)
-						// a[n+1] = uint16(surr2 + r&0x3ff)
-						r1, r2 := utf16.EncodeRune(r)
-						a[n] = uint16(r1)
-						a[n+1] = uint16(r2)
+						r -= surrSelf
+						a[n] = uint16(surr1 + (r>>10)&0x3ff)
+						a[n+1] = uint16(surr2 + r&0x3ff)
 						n++
-						fmt.Printf("High 1: %q - %q\n", string(p), string(s))
 					default:
 						a[n] = uint16(runeError)
 					}
@@ -380,16 +366,11 @@ Loop:
 					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
 						a[n] = uint16(r)
 					case surrSelf <= r && r <= maxRune:
-						// r -= surrSelf
-						// a[n] = uint16(surr1 + (r>>10)&0x3ff)
-						// a[n+1] = uint16(surr2 + r&0x3ff)
-						r1, r2 := utf16.EncodeRune(r)
-						a[n] = uint16(r1)
-						a[n+1] = uint16(r2)
+						r -= surrSelf
+						a[n] = uint16(surr1 + (r>>10)&0x3ff)
+						a[n+1] = uint16(surr2 + r&0x3ff)
 						n++
-						fmt.Printf("High 2: %q - %q\n", string(p), string(s))
 					default:
-						fmt.Println("HIt")
 						a[n] = uint16(runeError)
 					}
 					continue Loop
@@ -405,73 +386,28 @@ Loop:
 					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
 						a[n] = uint16(r)
 					case surrSelf <= r && r <= maxRune:
-						// r -= surrSelf
-						// a[n] = uint16(surr1 + (r>>10)&0x3ff)
-						// a[n+1] = uint16(surr2 + r&0x3ff)
-						r1, r2 := utf16.EncodeRune(r)
-						a[n] = uint16(r1)
-						a[n+1] = uint16(r2)
+						r -= surrSelf
+						a[n] = uint16(surr1 + (r>>10)&0x3ff)
+						a[n+1] = uint16(surr2 + r&0x3ff)
 						n++
-						fmt.Printf("High 3: %q - %q\n", string(p), string(s))
 					default:
-						fmt.Println("HIt")
 						a[n] = uint16(runeError)
 					}
 					continue Loop
 				}
 			}
 		}
-		fmt.Printf("Default: %q - %q\n", string(p), string(p[i:]))
 		a[n] = uint16(runeError)
 		i++
 	}
 	return a
 }
 
-// func BytesToUTF16(s []byte) []uint16 {
-// 	ns := len(s)
-// 	na := UTF16EncodedLen(s)
-// 	a := make([]uint16, na)
-// 	if na == ns {
-// 		for i, c := range s {
-// 			a[i] = uint16(c)
-// 		}
-// 		return a
-// 	}
-// 	n := 0
-// 	for i := 0; i < ns; n++ {
-// 		if s[i] < runeSelf {
-// 			a[n] = uint16(s[i])
-// 			i++
-// 		} else {
-// 			r, idx := decoderune(s, i)
-// 			i = idx
-// 			switch {
-// 			case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
-// 				// normal rune
-// 				a[n] = uint16(r)
-// 			case surrSelf <= r && r <= maxRune:
-// 				// needs surrogate sequence
-// 				r -= surrSelf
-// 				_ = a[n+1] // eliminate bounds checks
-// 				a[n] = uint16(surr1 + (r>>10)&0x3ff)
-// 				a[n+1] = uint16(surr2 + r&0x3ff)
-// 				n++
-// 			default:
-// 				a[n] = runeError
-// 			}
-// 		}
-// 	}
-// 	return a[:n]
-// }
-
 func StringToUTF16(s string) []uint16 {
 	ns := len(s)
 	na := UTF16EncodedLenString(s)
 	a := make([]uint16, na)
 	if na == ns {
-		// This is faster than 'for i := range s' and since
-		// string s consists only of ASCII chars is safe.
 		for i, c := range s {
 			a[i] = uint16(c)
 		}

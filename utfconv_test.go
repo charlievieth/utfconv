@@ -8,6 +8,20 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	TenASCIIChars         = "0123456789"
+	SixtyFourASCIIChars   = "0123456789:;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	TenJapaneseChars      = "日本語日本語日本語日"
+	SixtyFourUnicodeChars = "日a本b語ç日ð本Ê語þ日¥本¼語i日©日a本b語ç日ð本Ê語þ日¥本¼語i日©日a本b語ç日ð本Ê語þ日¥本¼語i日©日a本b"
+)
+
+var (
+	SixtyFourASCIICharsUTF16   = utf16.Encode([]rune(SixtyFourASCIIChars))
+	SixtyFourUnicodeCharsUTF16 = utf16.Encode([]rune(SixtyFourUnicodeChars))
+	TenASCIICharsUTF16         = utf16.Encode([]rune(TenASCIIChars))
+	TenJapaneseCharsUTF16      = utf16.Encode([]rune(TenJapaneseChars))
+)
+
 func TestConstants_UTF8(t *testing.T) {
 	if runeSelf != utf8.RuneSelf {
 		t.Errorf("runeSelf equals %d - utf8.RuneSelf equals %d", maxRune, utf8.MaxRune)
@@ -84,8 +98,8 @@ var testStrings = []string{
 	string(rune(0xe000)),
 	string(rune(0xdfff)),
 	"\U0010FFFD" + string(rune(0xd800)) + string(rune(0xd800)) + "日a本b語ç" + "ABC",
-	LargeTextSrcFile,
-	LargeUnicodeSrcFile,
+	SixtyFourASCIIChars,
+	SixtyFourUnicodeChars,
 }
 
 type RuneCountTest struct {
@@ -173,9 +187,9 @@ func TestUTF16EncodedLenString(t *testing.T) {
 }
 
 func TestBytesToUTF16(t *testing.T) {
-	// t.Skip("PENDING")
 	for i, s := range testStrings {
-		exp := utf16.Encode([]rune(s))
+		b := []byte(s)
+		exp := utf16.Encode([]rune(string(b)))
 		u := BytesToUTF16([]byte(s))
 		if !reflect.DeepEqual(u, exp) {
 			if len(exp) < 128 {
@@ -291,9 +305,6 @@ func TestInvalidUTF16EncodedLenString(t *testing.T) {
 }
 
 func TestInvalidBytesToUTF16(t *testing.T) {
-	// WARN FIX THIS TEST
-	t.Skip("BROKEN") // WARN
-
 	for i, s := range invalidSequenceTests {
 		exp := utf16.Encode([]rune(s))
 		u := BytesToUTF16([]byte(s))
@@ -309,9 +320,6 @@ func TestInvalidBytesToUTF16(t *testing.T) {
 }
 
 func TestInvalidStringToUTF16(t *testing.T) {
-	// WARN FIX THIS TEST
-	// t.Skip("Not working!")
-
 	for i, s := range invalidSequenceTests {
 		exp := utf16.Encode([]rune(s))
 		u := StringToUTF16(s)
@@ -325,16 +333,6 @@ func TestInvalidStringToUTF16(t *testing.T) {
 		}
 	}
 }
-
-const TenASCIIChars = "0123456789"
-const TenJapaneseChars = "日本語日本語日本語日"
-
-var (
-	LargeTextSrcFileUTF16    = utf16.Encode([]rune(LargeTextSrcFile))
-	LargeUnicodeSrcFileUTF16 = utf16.Encode([]rune(LargeUnicodeSrcFile))
-	TenASCIICharsUTF16       = utf16.Encode([]rune(TenASCIIChars))
-	TenJapaneseCharsUTF16    = utf16.Encode([]rune(TenJapaneseChars))
-)
 
 // UTF8EncodedLen
 
@@ -362,27 +360,27 @@ func BenchmarkUTF8EncodedLen_Base_TenJapaneseChars(b *testing.B) {
 	}
 }
 
-func BenchmarkUTF8EncodedLen_LargeASCII(b *testing.B) {
+func BenchmarkUTF8EncodedLen_SixtyFourASCII(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = UTF8EncodedLen(LargeTextSrcFileUTF16)
+		_ = UTF8EncodedLen(SixtyFourASCIICharsUTF16)
 	}
 }
 
-func BenchmarkUTF8EncodedLen_Base_LargeASCII(b *testing.B) {
+func BenchmarkUTF8EncodedLen_Base_SixtyFourASCII(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = len(string(utf16.Decode(LargeTextSrcFileUTF16)))
+		_ = len(string(utf16.Decode(SixtyFourASCIICharsUTF16)))
 	}
 }
 
-func BenchmarkUTF8EncodedLen_LargeUnicode(b *testing.B) {
+func BenchmarkUTF8EncodedLen_SixtyFourUnicode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = UTF8EncodedLen(LargeUnicodeSrcFileUTF16)
+		_ = UTF8EncodedLen(SixtyFourUnicodeCharsUTF16)
 	}
 }
 
-func BenchmarkUTF8EncodedLen_Base_LargeUnicode(b *testing.B) {
+func BenchmarkUTF8EncodedLen_Base_SixtyFourUnicode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = len(string(utf16.Decode(LargeUnicodeSrcFileUTF16)))
+		_ = len(string(utf16.Decode(SixtyFourUnicodeCharsUTF16)))
 	}
 }
 
@@ -420,37 +418,37 @@ func BenchmarkUTF16EncodedLen_Base_TenJapaneseChars(b *testing.B) {
 	}
 }
 
-func BenchmarkUTF16EncodedLen_LargeASCII(b *testing.B) {
-	p := []byte(LargeTextSrcFile)
+func BenchmarkUTF16EncodedLen_SixtyFourASCII(b *testing.B) {
+	p := []byte(SixtyFourASCIIChars)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = UTF16EncodedLen(p)
 	}
 }
 
-// func BenchmarkUTF16EncodedLen_Base_LargeASCII(b *testing.B) {
-// 	s := []byte(LargeTextSrcFile)
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(string(s))))
-// 	}
-// }
+func BenchmarkUTF16EncodedLen_Base_SixtyFourASCII(b *testing.B) {
+	s := []byte(SixtyFourASCIIChars)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(string(s))))
+	}
+}
 
-func BenchmarkUTF16EncodedLen_LargeUnicode(b *testing.B) {
-	p := []byte(LargeUnicodeSrcFile)
+func BenchmarkUTF16EncodedLen_SixtyFourUnicode(b *testing.B) {
+	p := []byte(SixtyFourUnicodeChars)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = UTF16EncodedLen(p)
 	}
 }
 
-// func BenchmarkUTF16EncodedLen_Base_LargeUnicode(b *testing.B) {
-// 	s := []byte(LargeUnicodeSrcFile)
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(string(s))))
-// 	}
-// }
+func BenchmarkUTF16EncodedLen_Base_SixtyFourUnicode(b *testing.B) {
+	s := []byte(SixtyFourUnicodeChars)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(string(s))))
+	}
+}
 
 // UTF16EncodedLenString
 
@@ -480,31 +478,31 @@ func BenchmarkUTF16EncodedLenString_Base_TenJapaneseChars(b *testing.B) {
 	}
 }
 
-// func BenchmarkUTF16EncodedLenString_LargeASCII(b *testing.B) {
-// 	for i := 0; i < b.N; i++ {
-// 		_ = UTF16EncodedLenString(LargeTextSrcFile)
-// 	}
-// }
+func BenchmarkUTF16EncodedLenString_SixtyFourASCII(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = UTF16EncodedLenString(SixtyFourASCIIChars)
+	}
+}
 
-// func BenchmarkUTF16EncodedLenString_Base_LargeASCII(b *testing.B) {
-// 	s := LargeTextSrcFile
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(s)))
-// 	}
-// }
+func BenchmarkUTF16EncodedLenString_Base_SixtyFourASCII(b *testing.B) {
+	s := SixtyFourASCIIChars
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(s)))
+	}
+}
 
-// func BenchmarkUTF16EncodedLenString_LargeUnicode(b *testing.B) {
-// 	for i := 0; i < b.N; i++ {
-// 		_ = UTF16EncodedLenString(LargeUnicodeSrcFile)
-// 	}
-// }
+func BenchmarkUTF16EncodedLenString_SixtyFourUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = UTF16EncodedLenString(SixtyFourUnicodeChars)
+	}
+}
 
-// func BenchmarkUTF16EncodedLenString_Base_LargeUnicode(b *testing.B) {
-// 	s := LargeUnicodeSrcFile
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(s)))
-// 	}
-// }
+func BenchmarkUTF16EncodedLenString_Base_SixtyFourUnicode(b *testing.B) {
+	s := SixtyFourUnicodeChars
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(s)))
+	}
+}
 
 // UTF16ToBytes
 
@@ -520,41 +518,65 @@ func BenchmarkUTF16ToBytes_TenJapaneseChars(b *testing.B) {
 	}
 }
 
-func BenchmarkUTF16ToBytes_LargeASCII(b *testing.B) {
+func BenchmarkUTF16ToBytes_SixtyFourASCII(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = UTF16ToBytes(LargeTextSrcFileUTF16)
+		_ = UTF16ToBytes(SixtyFourASCIICharsUTF16)
 	}
 }
 
-func BenchmarkUTF16ToBytes_LargeUnicode(b *testing.B) {
+func BenchmarkUTF16ToBytes_SixtyFourUnicode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = UTF16ToBytes(LargeUnicodeSrcFileUTF16)
+		_ = UTF16ToBytes(SixtyFourUnicodeCharsUTF16)
 	}
 }
 
 // UTF16ToString
 
-func BenchmarkUTF16ToString_LargeASCII(b *testing.B) {
+func BenchmarkUTF16ToString_TenASCIIChars(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = UTF16ToString(LargeTextSrcFileUTF16)
+		_ = UTF16ToString(TenASCIICharsUTF16)
 	}
 }
 
-func BenchmarkUTF16ToString_Base_LargeASCII(b *testing.B) {
+func BenchmarkUTF16ToString_Base_TenASCIIChars(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = string(utf16.Decode(LargeTextSrcFileUTF16))
+		_ = string(utf16.Decode(TenASCIICharsUTF16))
 	}
 }
 
-func BenchmarkUTF16ToString_LargeUnicode(b *testing.B) {
+func BenchmarkUTF16ToString_TenJapaneseChars(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = UTF16ToString(LargeUnicodeSrcFileUTF16)
+		_ = UTF16ToString(TenJapaneseCharsUTF16)
 	}
 }
 
-func BenchmarkUTF16ToString_Base_LargeUnicode(b *testing.B) {
+func BenchmarkUTF16ToString_Base_TenJapaneseChars(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = string(utf16.Decode(LargeUnicodeSrcFileUTF16))
+		_ = string(utf16.Decode(TenJapaneseCharsUTF16))
+	}
+}
+
+func BenchmarkUTF16ToString_SixtyFourASCII(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = UTF16ToString(SixtyFourASCIICharsUTF16)
+	}
+}
+
+func BenchmarkUTF16ToString_Base_SixtyFourASCII(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = string(utf16.Decode(SixtyFourASCIICharsUTF16))
+	}
+}
+
+func BenchmarkUTF16ToString_SixtyFourUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = UTF16ToString(SixtyFourUnicodeCharsUTF16)
+	}
+}
+
+func BenchmarkUTF16ToString_Base_SixtyFourUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = string(utf16.Decode(SixtyFourUnicodeCharsUTF16))
 	}
 }
 
@@ -588,33 +610,33 @@ func BenchmarkBytesToUTF16_Base_TenJapaneseChars(b *testing.B) {
 	}
 }
 
-// func BenchmarkBytesToUTF16_LargeASCII(b *testing.B) {
-// 	s := []byte(LargeTextSrcFile)
-// 	for i := 0; i < b.N; i++ {
-// 		_ = BytesToUTF16(s)
-// 	}
-// }
+func BenchmarkBytesToUTF16_SixtyFourASCII(b *testing.B) {
+	s := []byte(SixtyFourASCIIChars)
+	for i := 0; i < b.N; i++ {
+		_ = BytesToUTF16(s)
+	}
+}
 
-// func BenchmarkBytesToUTF16_Base_LargeASCII(b *testing.B) {
-// 	s := []byte(LargeTextSrcFile)
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(string(s))))
-// 	}
-// }
+func BenchmarkBytesToUTF16_Base_SixtyFourASCII(b *testing.B) {
+	s := []byte(SixtyFourASCIIChars)
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(string(s))))
+	}
+}
 
-// func BenchmarkBytesToUTF16_LargeUnicode(b *testing.B) {
-// 	s := []byte(LargeUnicodeSrcFile)
-// 	for i := 0; i < b.N; i++ {
-// 		_ = BytesToUTF16(s)
-// 	}
-// }
+func BenchmarkBytesToUTF16_SixtyFourUnicode(b *testing.B) {
+	s := []byte(SixtyFourUnicodeChars)
+	for i := 0; i < b.N; i++ {
+		_ = BytesToUTF16(s)
+	}
+}
 
-// func BenchmarkBytesToUTF16_Base_LargeUnicode(b *testing.B) {
-// 	s := []byte(LargeUnicodeSrcFile)
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(string(s))))
-// 	}
-// }
+func BenchmarkBytesToUTF16_Base_SixtyFourUnicode(b *testing.B) {
+	s := []byte(SixtyFourUnicodeChars)
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(string(s))))
+	}
+}
 
 // StringToUTF16
 
@@ -644,28 +666,28 @@ func BenchmarkStringToUTF16_Base_TenJapaneseChars(b *testing.B) {
 	}
 }
 
-// func BenchmarkStringToUTF16_LargeASCII(b *testing.B) {
-// 	for i := 0; i < b.N; i++ {
-// 		_ = StringToUTF16(LargeTextSrcFile)
-// 	}
-// }
+func BenchmarkStringToUTF16_SixtyFourASCII(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = StringToUTF16(SixtyFourASCIIChars)
+	}
+}
 
-// func BenchmarkStringToUTF16_Base_LargeASCII(b *testing.B) {
-// 	s := LargeTextSrcFile
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(s)))
-// 	}
-// }
+func BenchmarkStringToUTF16_Base_SixtyFourASCII(b *testing.B) {
+	s := SixtyFourASCIIChars
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(s)))
+	}
+}
 
-// func BenchmarkStringToUTF16_LargeUnicode(b *testing.B) {
-// 	for i := 0; i < b.N; i++ {
-// 		_ = StringToUTF16(LargeUnicodeSrcFile)
-// 	}
-// }
+func BenchmarkStringToUTF16_SixtyFourUnicode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = StringToUTF16(SixtyFourUnicodeChars)
+	}
+}
 
-// func BenchmarkStringToUTF16_Base_LargeUnicode(b *testing.B) {
-// 	s := LargeUnicodeSrcFile
-// 	for i := 0; i < b.N; i++ {
-// 		_ = len(utf16.Encode([]rune(s)))
-// 	}
-// }
+func BenchmarkStringToUTF16_Base_SixtyFourUnicode(b *testing.B) {
+	s := SixtyFourUnicodeChars
+	for i := 0; i < b.N; i++ {
+		_ = len(utf16.Encode([]rune(s)))
+	}
+}
