@@ -6,7 +6,7 @@ import "unsafe"
 
 const (
 	runeError    = '\uFFFD' // Unicode replacement character
-	runeErrorLen = 3        // Unicode replacement character
+	runeErrorLen = 3
 )
 
 const (
@@ -63,25 +63,26 @@ func UTF8EncodedLen(s []uint16) int {
 	ns := len(s)
 	n := 0
 	for i := 0; i < ns; i++ {
-		switch r := uint32(s[i]); {
-		case r < runeSelf:
-			// ASCII fast path
+		if s[i] < runeSelf {
 			n++
-		case r < surr1, surr3 <= r:
-			// normal rune
-			if r <= rune2Max {
-				n += 2
-			} else {
-				n += 3
+		} else {
+			switch r := uint32(s[i]); {
+			case r < surr1, surr3 <= r:
+				// normal rune
+				if r <= rune2Max {
+					n += 2
+				} else {
+					n += 3
+				}
+			case surr1 <= r && r < surr2 && i+1 < ns &&
+				surr2 <= s[i+1] && s[i+1] < surr3:
+				// valid surrogate sequence
+				n += 4
+				i++
+			default:
+				// invalid surrogate sequence
+				n += runeErrorLen
 			}
-		case surr1 <= r && r < surr2 && i+1 < ns &&
-			surr2 <= s[i+1] && s[i+1] < surr3:
-			// valid surrogate sequence
-			n += 4
-			i++
-		default:
-			// invalid surrogate sequence
-			n += runeErrorLen
 		}
 	}
 	return n
