@@ -150,8 +150,8 @@ func UTF16ToString(s []uint16) string {
 
 	// ASCII fast path
 	if na == ns {
-		for i, c := range s {
-			a[i] = byte(c)
+		for i := 0; i < ns; i++ {
+			a[i] = byte(s[i])
 		}
 		return *(*string)(unsafe.Pointer(&a))
 	}
@@ -204,9 +204,8 @@ func UTF16EncodedLen(p []byte) int {
 	// statement.
 
 	n := 0
-	ns := len(p)
 Loop:
-	for i := 0; i < ns; n++ {
+	for i := 0; i < len(p); n++ {
 		if p[i] < runeSelf {
 			i++
 			continue Loop
@@ -269,9 +268,8 @@ func UTF16EncodedLenString(p string) int {
 	// statement.
 
 	n := 0
-	np := len(p)
 Loop:
-	for i := 0; i < np; n++ {
+	for i := 0; i < len(p); n++ {
 		if p[i] < runeSelf {
 			i++
 			continue Loop
