@@ -261,70 +261,6 @@ Loop:
 	return n
 }
 
-func UTF16EncodedLenString(p string) int {
-	// Regarding the inner switch statements, there are equivalent expressions
-	// that are simpler, but when benchmarked with Go 1.9 were slower. Even the
-	// minimal check of 'if surrSelf <= r {...' was ~28% slower than the switch
-	// statement.
-
-	n := 0
-Loop:
-	for i := 0; i < len(p); n++ {
-		if p[i] < runeSelf {
-			i++
-			continue Loop
-		}
-		switch s := p[i:]; {
-		case t2 <= s[0] && s[0] < t3:
-			if len(s) > 1 && (locb <= s[1] && s[1] <= hicb) {
-				r := rune(s[0]&mask2)<<6 | rune(s[1]&maskx)
-				if rune1Max < r {
-					i += 2
-					switch {
-					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
-						// ok
-					case surrSelf <= r && r <= maxRune:
-						n++
-					}
-					continue Loop
-				}
-			}
-		case t3 <= s[0] && s[0] < t4:
-			if len(s) > 2 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] && s[2] <= hicb) {
-				r := rune(s[0]&mask3)<<12 | rune(s[1]&maskx)<<6
-				if rune2Max < r && !(surrogateMin <= r && r <= surrogateMax) {
-					i += 3
-					switch {
-					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
-						// ok
-					case surrSelf <= r && r <= maxRune:
-						n++
-					}
-					continue Loop
-				}
-			}
-		case t4 <= s[0] && s[0] < t5:
-			if len(s) > 3 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] &&
-				s[2] <= hicb) && (locb <= s[3] && s[3] <= hicb) {
-				r := rune(s[0]&mask4)<<18 | rune(s[1]&maskx)<<12 | rune(s[2]&maskx)<<6
-				if rune3Max < r && r <= maxRune {
-					i += 4
-					switch {
-					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
-						// ok
-					case surrSelf <= r && r <= maxRune:
-						n++
-					}
-					continue Loop
-				}
-			}
-		}
-		i++
-	}
-
-	return n
-}
-
 func BytesToUTF16(p []byte) []uint16 {
 	na := UTF16EncodedLen(p)
 	a := make([]uint16, na)
@@ -402,13 +338,127 @@ Loop:
 	return a
 }
 
+func UTF16EncodedLenString(p string) int {
+	n := 0
+Loop:
+	for i := 0; i < len(p); i++ {
+		n++
+		if p[i] < runeSelf {
+			continue Loop
+		}
+		switch s := p[i:]; {
+		case t2 <= s[0] && s[0] < t3:
+			if len(s) > 1 && (locb <= s[1] && s[1] <= hicb) {
+				r := rune(s[0]&mask2)<<6 | rune(s[1]&maskx)
+				if rune1Max < r {
+					i += 1
+					continue Loop
+				}
+			}
+		case t3 <= s[0] && s[0] < t4:
+			if len(s) > 2 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] && s[2] <= hicb) {
+				r := rune(s[0]&mask3)<<12 | rune(s[1]&maskx)<<6
+				if rune2Max < r && !(surrogateMin <= r && r <= surrogateMax) {
+					i += 2
+					continue Loop
+				}
+			}
+		case t4 <= s[0] && s[0] < t5:
+			if len(s) > 3 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] &&
+				s[2] <= hicb) && (locb <= s[3] && s[3] <= hicb) {
+				r := rune(s[0]&mask4)<<18 | rune(s[1]&maskx)<<12 | rune(s[2]&maskx)<<6
+				if rune3Max < r && r <= maxRune {
+					i += 3
+					if surrSelf <= r && r <= maxRune {
+						n++
+					}
+					continue Loop
+				}
+			}
+		}
+	}
+	return n
+}
+
+func encodedLenString(p string) (int, bool) {
+	// Regarding the inner switch statements, there are equivalent expressions
+	// that are simpler, but when benchmarked with Go 1.9 were slower. Even the
+	// minimal check of 'if surrSelf <= r {...' was ~28% slower than the switch
+	// statement.
+
+	n := 0
+	i := 0
+	for ; i < len(p); i++ {
+		if p[i] >= runeSelf {
+			n = i
+			goto Loop
+		}
+	}
+	return i, true
+
+Loop:
+	for ; i < len(p); n++ {
+		if p[i] < runeSelf {
+			i++
+			continue Loop
+		}
+		switch s := p[i:]; {
+		case t2 <= s[0] && s[0] < t3:
+			if len(s) > 1 && (locb <= s[1] && s[1] <= hicb) {
+				r := rune(s[0]&mask2)<<6 | rune(s[1]&maskx)
+				if rune1Max < r {
+					i += 2
+					switch {
+					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
+						// ok
+					case surrSelf <= r && r <= maxRune:
+						n++
+					}
+					continue Loop
+				}
+			}
+		case t3 <= s[0] && s[0] < t4:
+			if len(s) > 2 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] && s[2] <= hicb) {
+				r := rune(s[0]&mask3)<<12 | rune(s[1]&maskx)<<6
+				if rune2Max < r && !(surrogateMin <= r && r <= surrogateMax) {
+					i += 3
+					switch {
+					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
+						// ok
+					case surrSelf <= r && r <= maxRune:
+						n++
+					}
+					continue Loop
+				}
+			}
+		case t4 <= s[0] && s[0] < t5:
+			if len(s) > 3 && (locb <= s[1] && s[1] <= hicb) && (locb <= s[2] &&
+				s[2] <= hicb) && (locb <= s[3] && s[3] <= hicb) {
+				r := rune(s[0]&mask4)<<18 | rune(s[1]&maskx)<<12 | rune(s[2]&maskx)<<6
+				if rune3Max < r && r <= maxRune {
+					i += 4
+					switch {
+					case 0 <= r && r < surr1, surr3 <= r && r < surrSelf:
+						// ok
+					case surrSelf <= r && r <= maxRune:
+						n++
+					}
+					continue Loop
+				}
+			}
+		}
+		i++
+	}
+
+	return n, false
+}
+
 func StringToUTF16(s string) []uint16 {
-	ns := len(s)
-	na := UTF16EncodedLenString(s)
+	na, ok := encodedLenString(s)
 	a := make([]uint16, na)
-	if na == ns {
-		for i, c := range s {
-			a[i] = uint16(c)
+	if ok && na == len(s) {
+		for i := 0; i < len(s); i++ {
+			a[i] = uint16(s[i])
 		}
 		return a
 	}
