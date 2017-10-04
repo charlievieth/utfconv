@@ -1,7 +1,5 @@
 package utfconv
 
-import "unsafe"
-
 // UTF16 constants
 
 const (
@@ -144,16 +142,23 @@ func UTF16ToBytes(s []uint16) []byte {
 }
 
 func UTF16ToString(s []uint16) string {
+	var buf [32]byte
+	var a []byte
+
 	na := UTF8EncodedLen(s)
-	a := make([]byte, na)
-	ns := len(s)
+	if na <= len(buf) {
+		a = buf[0:]
+	} else {
+		a = make([]byte, na)
+	}
 
 	// ASCII fast path
+	ns := len(s)
 	if na == ns {
 		for i := 0; i < ns; i++ {
 			a[i] = byte(s[i])
 		}
-		return *(*string)(unsafe.Pointer(&a))
+		return string(a[:na])
 	}
 
 	n := 0
@@ -194,7 +199,7 @@ func UTF16ToString(s []uint16) string {
 		}
 	}
 
-	return *(*string)(unsafe.Pointer(&a))
+	return string(a[:na])
 }
 
 func UTF16EncodedLen(p []byte) int {
