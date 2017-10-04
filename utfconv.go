@@ -59,28 +59,39 @@ const (
 // as UTF8.
 func UTF8EncodedLen(s []uint16) int {
 	ns := len(s)
-	n := 0
-	for i := 0; i < ns; i++ {
+	n := ns
+	i := 0
+	for ; i < ns; i++ {
+		if s[i] >= runeSelf {
+			goto Loop
+		}
+	}
+	return ns
+
+Loop:
+	for ; i < ns; i++ {
 		if s[i] < runeSelf {
-			n++
-		} else {
-			switch r := uint32(s[i]); {
-			case r < surr1, surr3 <= r:
-				// normal rune
-				if r <= rune2Max {
-					n += 2
-				} else {
-					n += 3
-				}
-			case surr1 <= r && r < surr2 && i+1 < ns &&
-				surr2 <= s[i+1] && s[i+1] < surr3:
-				// valid surrogate sequence
-				n += 4
-				i++
-			default:
-				// invalid surrogate sequence
-				n += runeErrorLen
+			continue Loop
+		}
+		switch r := rune(s[i]); {
+		case r < surr1, surr3 <= r:
+			// normal rune
+			if r <= rune2Max {
+				n += 1
+			} else {
+				n += 2
 			}
+			continue Loop
+		case surr1 <= r && r < surr2 && i+1 < ns &&
+			surr2 <= s[i+1] && s[i+1] < surr3:
+			// valid surrogate sequence
+			n += 2
+			i++
+			continue Loop
+		default:
+			// invalid surrogate sequence
+			n += runeErrorLen - 1
+			continue Loop
 		}
 	}
 	return n
